@@ -1,91 +1,67 @@
-# wordpress-operator
-// TODO(user): Add simple overview of use/purpose
+# Kubernetes Operator Development: Proof of Concept (POC) for Wordpress Management
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+## Objective
 
-## Getting Started
+Develop a Kubernetes Operator to manage a custom web application, Wordpress. The Operator should automate the deployment, configuration, and scaling of the Wordpress application, as well as manage the associated resources such as ConfigMaps, Secrets, and Horizontal Pod Autoscalers (HPA).
 
-### Prerequisites
-- go version v1.20.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+## Scope
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+- Create a Custom Resource Definition (CRD) for the Wordpress application.
+- Develop a controller to manage the lifecycle of the custom resource.
+- Handle the creation and update of ConfigMaps, Secrets, Deployments, and HPA.
+- Ensure the Operator can scale the application based on CPU usage.
 
-```sh
-make docker-build docker-push IMG=<some-registry>/wordpress-operator:tag
-```
+## Deliverables
 
-**NOTE:** This image ought to be published in the personal registry you specified. 
-And it is required to have access to pull the image from the working environment. 
-Make sure you have the proper permission to the registry if the above commands don’t work.
+- CRD YAML file for the custom web application.
+- Kubernetes Operator implementation using Operator SDK (in Go).
+- Documentation on how to deploy and use the Operator.
 
-**Install the CRDs into the cluster:**
+## Technical Requirements
 
-```sh
-make install
-```
+### 1. Custom Resource Definition (CRD)
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+Define a CRD named `Wordpress` with the following specifications:
+- `image`: Docker image of the Wordpress application.
+- `replicas`: Number of replicas for the Deployment.
+- `configData`: Configuration data to be stored in a ConfigMap.
+- `dbUsername` and `dbPassword`: Database credentials to be stored in a Secret.
+- `minReplicas` and `maxReplicas`: Minimum and maximum replicas for HPA.
+- `targetCPUUtilizationPercentage`: Target CPU utilization for HPA.
 
-```sh
-make deploy IMG=<some-registry>/wordpress-operator:tag
-```
+### 2. Controller
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin 
-privileges or be logged in as admin.
+Implement the controller to watch for changes in `Wordpress` custom resources and reconcile the desired state by creating or updating the following Kubernetes resources:
+- ConfigMap: Store configuration data.
+- Secret: Store database credentials.
+- Deployment: Deploy the Wordpress application.
+- Horizontal Pod Autoscaler (HPA): Scale the application based on CPU usage.
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+### 3. Reconciliation Logic
 
-```sh
-kubectl apply -k config/samples/
-```
+- Fetch the `Wordpress` custom resource.
+- Create or update the ConfigMap with `configData`.
+- Create or update the Secret with `dbUsername` and `dbPassword`.
+- Create or update the Deployment with the specified `image` and `replicas`.
+- Create or update the HPA with the specified `minReplicas`, `maxReplicas`, and `targetCPUUtilizationPercentage`.
 
->**NOTE**: Ensure that the samples has default values to test it out.
+### 4. Testing
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+- Deploy the CRD and Operator in a Kubernetes cluster.
+- Create a sample `Wordpress` custom resource and verify that all associated resources (ConfigMap, Secret, Deployment, HPA) are created and updated correctly.
+- Test scaling by adjusting the CPU load and observing the HPA behavior.
 
-```sh
-kubectl delete -k config/samples/
-```
+## Documentation
 
-**Delete the APIs(CRDs) from the cluster:**
+Provide detailed instructions on how to deploy and use the Operator, including:
 
-```sh
-make uninstall
-```
+- Prerequisites (e.g., Kubernetes cluster, kubectl, Operator SDK).
+- Steps to build and deploy the Operator.
+- Example of creating a `Wordpress` custom resource.
+- How to observe and verify the Operator's actions (e.g., checking ConfigMap, Secret, Deployment, and HPA).
 
-**UnDeploy the controller from the cluster:**
+---
 
-```sh
-make undeploy
-```
+Feel free to contribute to this project by submitting issues, feature requests, and pull requests.
 
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2024 Rameshwar Kanade.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+Happy coding!
