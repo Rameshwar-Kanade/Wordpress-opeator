@@ -1,46 +1,23 @@
-/*
-Copyright 2024 Rameshwar Kanade.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// WordpressSpec defines the desired state of Wordpress
 type WordpressSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	Image                          string `json:"image"`
-	Replicas                       int32  `json:"replicas"`
-	ConfigData                     string `json:"configData"`
-	DbUsername                     string `json:"dbUsername"`
-	DbPassword                     string `json:"dbPassword"`
-	MinReplicas                    int32  `json:"minReplicas"`
-	MaxReplicas                    int32  `json:"maxReplicas"`
-	TargetCPUUtilizationPercentage int32  `json:"targetCPUUtilizationPercentage"`
+	Image                          string            `json:"image,omitempty"`
+	Replicas                       int32             `json:"replicas,omitempty"`
+	ConfigData                     map[string]string `json:"configData,omitempty"`
+	DBUserName                     string            `json:"dbUsername,omitempty"`
+	DBPassword                     string            `json:"dbPassword,omitempty"`
+	MinReplicas                    int32             `json:"minReplicas,omitempty"`
+	MaxReplicas                    int32             `json:"maxReplicas,omitempty"`
+	TargetCPUUtilizationPercentage int32             `json:"targetCPUUtilizationPercentage,omitempty"`
 }
 
 // WordpressStatus defines the observed state of Wordpress
 type WordpressStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+	// Insert additional status field - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 }
 

@@ -19,20 +19,17 @@ package controller
 import (
 	"context"
 
-	"reflect"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	webappv1alpha1 "github.com/Rameshwar-Kanade/wordpress/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // WordpressReconciler reconciles a Wordpress object
@@ -53,182 +50,99 @@ type WordpressReconciler struct {
 // the user.
 //
 // For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.16.3/pkg/reconcile
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
 func (r *WordpressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
 	// Fetch the Wordpress instance
-	wordpress := &webappv1alpha1.Wordpress{}
-	err := r.Get(ctx, req.NamespacedName, wordpress)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			log.Info("Wordpress resource not found. Ignoring since object must be deleted.")
-			return ctrl.Result{}, nil
-		}
-		log.Error(err, "Failed to get Wordpress")
-		return ctrl.Result{}, err
+	var wordpress webappv1alpha1.Wordpress
+	if err := r.Get(ctx, req.NamespacedName, &wordpress); err != nil {
+		log.Error(err, "unable to fetch Wordpress")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	log.Info("Fetched Wordpress resource", "Wordpress", wordpress)
+	// Define the desired state of the ConfigMap
 
-	// Define the desired state
-	desiredConfigMap := r.createConfigMap(ctx, wordpress)
-	log.Info("Desired ConfigMap created", "ConfigMap", desiredConfigMap)
-
-	desiredSecret := r.createSecret(ctx, wordpress)
-	log.Info("Desired Secret created", "Secret", desiredSecret)
-
-	desiredDeployment := r.createDeployment(ctx, wordpress)
-	log.Info("Desired Deployment created", "Deployment", desiredDeployment)
-
-	desiredHPA := r.createHPA(ctx, wordpress)
-	log.Info("Desired HPA created", "HPA", desiredHPA)
-
-	// Check if the ConfigMap already exists
-	existingConfigMap := &corev1.ConfigMap{}
-	err = r.Get(ctx, types.NamespacedName{Name: desiredConfigMap.Name, Namespace: desiredConfigMap.Namespace}, existingConfigMap)
-	if err != nil && errors.IsNotFound(err) {
-		log.Info("Creating ConfigMap", "ConfigMap.Namespace", desiredConfigMap.Namespace, "ConfigMap.Name", desiredConfigMap.Name)
-		err = r.Create(ctx, desiredConfigMap)
-		if err != nil {
-			log.Error(err, "Failed to create new ConfigMap", "ConfigMap.Namespace", desiredConfigMap.Namespace, "ConfigMap.Name", desiredConfigMap.Name)
-			return ctrl.Result{}, err
-		}
-	} else if err != nil {
-		log.Error(err, "Failed to get ConfigMap")
-		return ctrl.Result{}, err
+	// Fetch data from config
+	configMapData := make(map[string]string)
+	for k, v := range wordpress.Spec.ConfigData {
+		configMapData[k] = v
 	}
 
-	// Check if the Secret already exists
-	existingSecret := &corev1.Secret{}
-	err = r.Get(ctx, types.NamespacedName{Name: desiredSecret.Name, Namespace: desiredSecret.Namespace}, existingSecret)
-	if err != nil && errors.IsNotFound(err) {
-		log.Info("Creating Secret", "Secret.Namespace", desiredSecret.Namespace, "Secret.Name", desiredSecret.Name)
-		err = r.Create(ctx, desiredSecret)
-		if err != nil {
-			log.Error(err, "Failed to create new Secret", "Secret.Namespace", desiredSecret.Namespace, "Secret.Name", desiredSecret.Name)
-			return ctrl.Result{}, err
-		}
-	} else if err != nil {
-		log.Error(err, "Failed to get Secret")
-		return ctrl.Result{}, err
-	}
-
-	// Check if the Deployment already exists
-	existingDeployment := &appsv1.Deployment{}
-	err = r.Get(ctx, types.NamespacedName{Name: desiredDeployment.Name, Namespace: desiredDeployment.Namespace}, existingDeployment)
-	if err != nil && errors.IsNotFound(err) {
-		log.Info("Creating Deployment", "Deployment.Namespace", desiredDeployment.Namespace, "Deployment.Name", desiredDeployment.Name)
-		err = r.Create(ctx, desiredDeployment)
-		if err != nil {
-			log.Error(err, "Failed to create new Deployment", "Deployment.Namespace", desiredDeployment.Namespace, "Deployment.Name", desiredDeployment.Name)
-			return ctrl.Result{}, err
-		}
-	} else if err != nil {
-		log.Error(err, "Failed to get Deployment")
-		return ctrl.Result{}, err
-	}
-
-	// Update the Deployment if necessary
-	if !reflect.DeepEqual(desiredDeployment.Spec, existingDeployment.Spec) {
-		log.Info("Updating Deployment", "Deployment.Namespace", existingDeployment.Namespace, "Deployment.Name", existingDeployment.Name)
-		err = r.Update(ctx, desiredDeployment)
-		if err != nil {
-			log.Error(err, "Failed to update Deployment", "Deployment.Namespace", existingDeployment.Namespace, "Deployment.Name", existingDeployment.Name)
-			return ctrl.Result{}, err
-		}
-	}
-
-	// Check if the HPA already exists
-	existingHPA := &autoscalingv1.HorizontalPodAutoscaler{}
-	err = r.Get(ctx, types.NamespacedName{Name: desiredHPA.Name, Namespace: desiredHPA.Namespace}, existingHPA)
-	if err != nil && errors.IsNotFound(err) {
-		log.Info("Creating HPA", "HPA.Namespace", desiredHPA.Namespace, "HPA.Name", desiredHPA.Name)
-		err = r.Create(ctx, desiredHPA)
-		if err != nil {
-			log.Error(err, "Failed to create new HPA", "HPA.Namespace", desiredHPA.Namespace, "HPA.Name", desiredHPA.Name)
-			return ctrl.Result{}, err
-		}
-	} else if err != nil {
-		log.Error(err, "Failed to get HPA")
-		return ctrl.Result{}, err
-	}
-
-	// Update the HPA if necessary
-	if !reflect.DeepEqual(desiredHPA.Spec, existingHPA.Spec) {
-		log.Info("Updating HPA", "HPA.Namespace", existingHPA.Namespace, "HPA.Name", existingHPA.Name)
-		err = r.Update(ctx, desiredHPA)
-		if err != nil {
-			log.Error(err, "Failed to update HPA", "HPA.Namespace", existingHPA.Namespace, "HPA.Name", existingHPA.Name)
-			return ctrl.Result{}, err
-		}
-	}
-
-	return ctrl.Result{}, nil
-}
-
-func (r *WordpressReconciler) createConfigMap(ctx context.Context, wordpress *webappv1alpha1.Wordpress) *corev1.ConfigMap {
-	log := log.FromContext(ctx)
+	// Create ConfigMap
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      wordpress.Name + "-config",
 			Namespace: wordpress.Namespace,
 		},
-		Data: map[string]string{
-			"configData": wordpress.Spec.ConfigData,
-		},
+		Data: configMapData,
 	}
-	log.Info("Creating ConfigMap", "ConfigMap", configMap)
-	return configMap
-}
 
-func (r *WordpressReconciler) createSecret(ctx context.Context, wordpress *webappv1alpha1.Wordpress) *corev1.Secret {
-	log := log.FromContext(ctx)
+	// Create or Update the ConfigMap
+	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, configMap, func() error {
+		if configMap.Data == nil {
+			configMap.Data = make(map[string]string)
+		}
+		configMap.Data = configMapData
+
+		return nil
+	})
+	if err != nil {
+		log.Error(err, "unable to create or update ConfigMap")
+		return ctrl.Result{}, err
+	}
+	log.Info("ConfigMap reconciled", "operation", op, "name", configMap.Name)
+
+	// Define the desired state of the Secret
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      wordpress.Name + "-secret",
 			Namespace: wordpress.Namespace,
 		},
-		Data: map[string][]byte{
-			"dbUsername": []byte(wordpress.Spec.DbUsername),
-			"dbPassword": []byte(wordpress.Spec.DbPassword),
+		StringData: map[string]string{
+			"dbUsername": wordpress.Spec.DBUserName,
+			"dbPassword": wordpress.Spec.DBPassword,
 		},
 	}
-	log.Info("Creating Secret", "Secret", secret)
-	return secret
-}
 
-func (r *WordpressReconciler) createDeployment(ctx context.Context, wordpress *webappv1alpha1.Wordpress) *appsv1.Deployment {
-	log := log.FromContext(ctx)
-	replicas := wordpress.Spec.Replicas
-	labels := map[string]string{
-		"app": wordpress.Name,
+	// Create or Update the Secret
+	op, err = controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		if secret.StringData == nil {
+			secret.StringData = make(map[string]string)
+		}
+		secret.StringData["dbUsername"] = wordpress.Spec.DBUserName
+		secret.StringData["dbPassword"] = wordpress.Spec.DBPassword
+		return nil
+	})
+	if err != nil {
+		log.Error(err, "unable to create or update Secret")
+		return ctrl.Result{}, err
 	}
+	log.Info("Secret reconciled", "operation", op, "name", secret.Name)
+
+	// Define the desired state of the Deployment
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      wordpress.Name,
 			Namespace: wordpress.Namespace,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
+			Replicas: &wordpress.Spec.Replicas,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
+				MatchLabels: map[string]string{"app": wordpress.Name},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
+					Labels: map[string]string{"app": wordpress.Name},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:  "wordpress",
 						Image: wordpress.Spec.Image,
-						Ports: []corev1.ContainerPort{{
-							ContainerPort: 80,
-							Name:          "http",
-						}},
+						// Fetched env data from Secret
 						Env: []corev1.EnvVar{
 							{
-								Name: "WORDPRESS_DB_HOST",
+								Name: "WORDPRESS_DB_USER",
 								ValueFrom: &corev1.EnvVarSource{
 									SecretKeyRef: &corev1.SecretKeySelector{
 										LocalObjectReference: corev1.LocalObjectReference{
@@ -250,35 +164,67 @@ func (r *WordpressReconciler) createDeployment(ctx context.Context, wordpress *w
 								},
 							},
 						},
+
+						// Fetched env data from ConfigMap
+						EnvFrom: []corev1.EnvFromSource{
+							{
+								ConfigMapRef: &corev1.ConfigMapEnvSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: wordpress.Name + "-config",
+									},
+								},
+							},
+						},
 					}},
 				},
 			},
 		},
 	}
-	log.Info("Creating Deployment", "Deployment", deployment)
-	return deployment
-}
 
-func (r *WordpressReconciler) createHPA(ctx context.Context, wordpress *webappv1alpha1.Wordpress) *autoscalingv1.HorizontalPodAutoscaler {
-	log := log.FromContext(ctx)
+	// Create or Update the Deployment
+	op, err = controllerutil.CreateOrUpdate(ctx, r.Client, deployment, func() error {
+		deployment.Spec.Replicas = &wordpress.Spec.Replicas
+		deployment.Spec.Template.Spec.Containers[0].Image = wordpress.Spec.Image
+		return nil
+	})
+	if err != nil {
+		log.Error(err, "unable to create or update Deployment")
+		return ctrl.Result{}, err
+	}
+	log.Info("Deployment reconciled", "operation", op, "name", deployment.Name)
+
+	// Define the desired state of the HPA
 	hpa := &autoscalingv1.HorizontalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      wordpress.Name + "-hpa",
+			Name:      wordpress.Name,
 			Namespace: wordpress.Namespace,
 		},
 		Spec: autoscalingv1.HorizontalPodAutoscalerSpec{
 			ScaleTargetRef: autoscalingv1.CrossVersionObjectReference{
-				APIVersion: "apps/v1",
 				Kind:       "Deployment",
 				Name:       wordpress.Name,
+				APIVersion: "apps/v1",
 			},
 			MinReplicas:                    &wordpress.Spec.MinReplicas,
 			MaxReplicas:                    wordpress.Spec.MaxReplicas,
 			TargetCPUUtilizationPercentage: &wordpress.Spec.TargetCPUUtilizationPercentage,
 		},
 	}
-	log.Info("Creating HPA", "HPA", hpa)
-	return hpa
+
+	// Create or Update the HPA
+	op, err = controllerutil.CreateOrUpdate(ctx, r.Client, hpa, func() error {
+		hpa.Spec.MinReplicas = &wordpress.Spec.MinReplicas
+		hpa.Spec.MaxReplicas = wordpress.Spec.MaxReplicas
+		hpa.Spec.TargetCPUUtilizationPercentage = &wordpress.Spec.TargetCPUUtilizationPercentage
+		return nil
+	})
+	if err != nil {
+		log.Error(err, "unable to create or update HPA")
+		return ctrl.Result{}, err
+	}
+	log.Info("HPA reconciled", "operation", op, "name", hpa.Name)
+
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

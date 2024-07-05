@@ -9,14 +9,13 @@ metadata:
     app.kubernetes.io/created-by: wordpress-operator
   name: wordpress-rameshwar
 spec:
-  spec:
   image: wordpress:latest
   replicas: 2
-  configData: |
-    WORDPRESS_DB_HOST: mysql
-    WORDPRESS_DB_NAME: wordpress
-  dbUsername: admin
-  dbPassword: password
+  configData: 
+    WORDPRESS_DB_HOST: "mysql"
+    WORDPRESS_DB_NAME: "wordpress"
+  dbUsername: "root"
+  dbPassword: "password"
   minReplicas: 1
   maxReplicas: 5
   targetCPUUtilizationPercentage: 80

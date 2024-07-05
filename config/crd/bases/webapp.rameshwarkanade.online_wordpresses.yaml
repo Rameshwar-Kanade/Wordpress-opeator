@@ -32,10 +32,11 @@ spec:
           metadata:
             type: object
           spec:
-            description: WordpressSpec defines the desired state of Wordpress
             properties:
               configData:
-                type: string
+                additionalProperties:
+                  type: string
+                type: object
               dbPassword:
                 type: string
               dbUsername:
@@ -54,15 +55,6 @@ spec:
               targetCPUUtilizationPercentage:
                 format: int32
                 type: integer
-            required:
-            - configData
-            - dbPassword
-            - dbUsername
-            - image
-            - maxReplicas
-            - minReplicas
-            - replicas
-            - targetCPUUtilizationPercentage
             type: object
           status:
             description: WordpressStatus defines the observed state of Wordpress
