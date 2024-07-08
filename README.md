@@ -62,6 +62,4 @@ Provide detailed instructions on how to deploy and use the Operator, including:
 
 ---
 
-Feel free to contribute to this project by submitting issues, feature requests, and pull requests.
-
 Happy coding!
